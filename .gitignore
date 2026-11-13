@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.secrets/
+.env
+release/
+test-results/
+data/
+.migration-input/
+.offline-check/
+
+.DS_Store
+.env.*
+*.dump
+*.sqlite
+*.sqlite3
+*.db

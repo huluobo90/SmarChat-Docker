@@ -1,0 +1,19 @@
+services:
+  importer:
+    image: smarchat-importer:1.0.0-alpha.3
+    build:
+      context: .
+      dockerfile: deploy/Import.Dockerfile
+    profiles: [migration]
+    environment:
+      DB_ROLE: postgres
+      PGHOST: db
+    secrets: [db_password, master_key]
+    volumes:
+      - files:/data
+      - ./.migration-input:/imports
+    networks: [private]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs: ["/tmp:size=2g,mode=1777"]

@@ -1,0 +1,163 @@
+name: smarchat-native
+x-common: &common
+  image: smarchat-server:1.0.0-alpha.3
+  build:
+    context: .
+    dockerfile: deploy/Dockerfile
+    target: runtime
+  restart: unless-stopped
+  init: true
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs: ["/tmp:size=512m,mode=1777"]
+  environment: &environment
+    PGHOST: db
+    PGDATABASE: smarchat
+    REDIS_HOST: redis
+    PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://localhost:6081}
+    COOKIE_SECURE: ${COOKIE_SECURE:-false}
+  networks: [private, outbound]
+services:
+  converter:
+    image: smarchat-converter:1.0.0-alpha.3
+    build:
+      context: .
+      dockerfile: deploy/Converter.Dockerfile
+    restart: unless-stopped
+    init: true
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 24
+    volumes: [exchange:/exchange]
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+  db:
+    image: postgres:17-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: smarchat
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets: [db_password]
+    volumes: [postgres:/var/lib/postgresql/data]
+    networks: [private]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U postgres -d smarchat]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  redis:
+    image: redis:7.4-bookworm
+    restart: unless-stopped
+    command:
+      [
+        redis-server,
+        --appendonly,
+        "yes",
+        --maxmemory,
+        256mb,
+        --maxmemory-policy,
+        noeviction,
+      ]
+    volumes: [redis:/data]
+    networks: [private]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  migrate:
+    <<: *common
+    restart: "no"
+    command: [node, --import, tsx, packages/database/migrate.ts]
+    secrets:
+      [
+        db_password,
+        api_password,
+        worker_password,
+        bootstrap_password,
+        team_Bison02,
+        team_Bison03,
+        team_Bison04,
+        team_Bison05,
+        team_Bison06,
+        team_Bison07,
+        master_key,
+      ]
+    depends_on:
+      db: { condition: service_healthy }
+  api:
+    <<: *common
+    environment:
+      <<: *environment
+      DB_ROLE: smarchat_api
+    secrets: [api_password, master_key]
+    ports: ["${BIND_ADDRESS:-127.0.0.1}:${SMARCHAT_PORT:-6081}:3000"]
+    volumes:
+      [files:/data, operations:/ops, backups:/backups:ro, exchange:/exchange]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  worker:
+    <<: *common
+    command: [node, --import, tsx, apps/worker/index.ts]
+    environment:
+      <<: *environment
+      DB_ROLE: smarchat_worker
+    secrets: [worker_password, master_key]
+    volumes: [files:/data, exchange:/exchange]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+  backup:
+    <<: *common
+    image: smarchat-ops:1.0.0-alpha.3
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+      target: ops
+    environment:
+      <<: *environment
+      DB_ROLE: smarchat_worker
+    secrets: [db_password, worker_password, master_key]
+    volumes: [files:/data, operations:/ops, backups:/backups]
+    tmpfs: ["/tmp:size=2g,mode=1777"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+networks:
+  private: { internal: true }
+  outbound: {}
+volumes:
+  postgres:
+  redis:
+  files:
+  operations:
+  backups:
+  exchange:
+secrets:
+  db_password: { file: .secrets/db_password }
+  api_password: { file: .secrets/api_password }
+  worker_password: { file: .secrets/worker_password }
+  master_key: { file: .secrets/master_key }
+  bootstrap_password: { file: .secrets/bootstrap_password }
+
+  team_Bison02: { file: .secrets/team_Bison02 }
+  team_Bison03: { file: .secrets/team_Bison03 }
+  team_Bison04: { file: .secrets/team_Bison04 }
+  team_Bison05: { file: .secrets/team_Bison05 }
+  team_Bison06: { file: .secrets/team_Bison06 }
+  team_Bison07: { file: .secrets/team_Bison07 }
