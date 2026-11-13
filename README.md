@@ -31,7 +31,7 @@ sh deploy/setup.sh
 docker compose up -d --build
 ```
 
-在部署电脑上打开 **http://localhost:6081**。首次构建和数据库初始化需要一定时间，可查看服务状态：
+在部署电脑上打开 [http://localhost:6081](http://localhost:6081)。首次构建和数据库初始化需要一定时间，可查看服务状态：
 
 ```sh
 docker compose ps -a
