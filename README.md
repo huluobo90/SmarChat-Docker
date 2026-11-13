@@ -9,7 +9,7 @@ sh deploy/setup.sh
 docker compose up -d --build
 ```
 
-打开 http://localhost:6081 。初始化仅创建 Bison01 超管和 Bison02–Bison07 六名成员，客户、聊天、附件、分析均为空。初始密码见本机生成的 `.secrets/bootstrap_password` 和 `.secrets/team_Bison02` 等文件，首次登录需改密。
+初始化仅创建 Bison01 超管和 Bison02–Bison07 六名成员，客户、聊天、附件、分析均为空。初始密码见本机生成的 `.secrets/bootstrap_password` 和 `.secrets/team_Bison02` 等文件，首次登录需改密。
 
 本仓库不包含演示导入脚本、演示客户、截图、运行数据、WhatsApp 登录态或部署密钥。数据库和文件保存在 Docker volumes；升级时保留原 `.secrets` 和 volumes。
 
